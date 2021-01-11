@@ -4,6 +4,11 @@ use arith::U256;
 use std::fmt;
 use rand::Rng;
 
+#[cfg(feature = "digest")]
+use digest::FixedOutput;
+#[cfg(feature = "digest")]
+use generic_array::typenum::U32;
+
 use serde::ser::Serialize;
 use serde::de::DeserializeOwned;
 
@@ -20,6 +25,10 @@ pub trait GroupElement
     + Mul<Fr, Output = Self> {
     fn zero() -> Self;
     fn one() -> Self;
+    #[cfg(feature = "digest")]
+    fn hash_to_group<T>(digest: T) -> Self
+    where
+        T: FixedOutput<OutputSize = U32>;
     fn random<R: Rng>(rng: &mut R) -> Self;
     fn is_zero(&self) -> bool;
     fn double(&self) -> Self;
@@ -220,6 +229,14 @@ impl<P: GroupParams> GroupElement for G<P> {
 
     fn one() -> Self {
         P::one()
+    }
+
+    #[cfg(feature = "digest")]
+    fn hash_to_group<T>(digest: T) -> Self
+    where
+        T: FixedOutput<OutputSize = U32>,
+    {
+        Self::one()
     }
 
     fn random<R: Rng>(rng: &mut R) -> Self {

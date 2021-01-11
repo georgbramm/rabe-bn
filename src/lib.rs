@@ -4,6 +4,10 @@ extern crate serde;
 extern crate rand;
 extern crate byteorder;
 extern crate core;
+#[cfg(feature = "digest")]
+extern crate digest;
+#[cfg(feature = "digest")]
+extern crate generic_array;
 
 mod arith;
 mod fields;
@@ -13,6 +17,11 @@ use fields::FieldElement;
 use groups::GroupElement;
 use std::ops::{Add, Sub, Mul, Neg};
 use rand::{Rng, distributions::{Distribution, Standard}, thread_rng};
+
+#[cfg(feature = "digest")]
+use digest::FixedOutput;
+#[cfg(feature = "digest")]
+use generic_array::typenum::U32;
 
 use serde::ser::Serialize;
 use serde::de::DeserializeOwned;
@@ -110,6 +119,9 @@ pub trait Group
     + Mul<Fr, Output = Self> {
     fn zero() -> Self;
     fn one() -> Self;
+    #[cfg(feature = "digest")]
+    fn hash_to_group<T>(digest: T) -> Self
+        where T: FixedOutput::<OutputSize = U32>;
     fn random<R: Rng>(rng: &mut R) -> Self;
     fn is_zero(&self) -> bool;
     fn normalize(&mut self);
@@ -125,6 +137,12 @@ impl Group for G1 {
     }
     fn one() -> Self {
         G1(groups::G1::one())
+    }
+    #[cfg(feature = "digest")]
+    fn hash_to_group<T>(digest: T) -> Self
+        where T: FixedOutput::<OutputSize = U32>,
+    {
+        G1(groups::G1::hash_to_group(digest))
     }
     fn random<R: Rng>(rng: &mut R) -> Self {
         G1(groups::G1::random(rng))
@@ -190,6 +208,12 @@ impl Group for G2 {
     }
     fn one() -> Self {
         G2(groups::G2::one())
+    }
+    #[cfg(feature = "digest")]
+    fn hash_to_group<T>(digest: T) -> Self
+        where T: FixedOutput::<OutputSize = U32>,
+    {
+        G2(groups::G2::hash_to_group(digest))
     }
     fn random<R: Rng>(rng: &mut R) -> Self {
         G2(groups::G2::random(rng))
