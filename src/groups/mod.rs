@@ -59,6 +59,40 @@ pub struct AffineG<P: GroupParams> {
     y: P::Base,
 }
 
+impl AffineG<G1Params> {
+    pub fn into_bytes(self) -> Vec<u8> {
+        let mut result = Vec::with_capacity(64);
+        result.extend(self.x.into_bytes());
+        result.extend(self.y.into_bytes());
+        result
+    }
+
+    pub fn from_bytes(bytes: &[u8]) -> Option<Self> {
+        // XXX check whether on curve.
+        Some(AffineG {
+            x: Fq::from_bytes(&bytes[..32])?,
+            y: Fq::from_bytes(&bytes[32..])?,
+        })
+    }
+}
+
+impl AffineG<G2Params> {
+    pub fn into_bytes(self) -> Vec<u8> {
+        let mut result = Vec::with_capacity(64);
+        result.extend(self.x.into_bytes());
+        result.extend(self.y.into_bytes());
+        result
+    }
+
+    pub fn from_bytes(bytes: &[u8]) -> Option<Self> {
+        // XXX check whether on curve.
+        Some(AffineG {
+            x: Fq2::from_bytes(&bytes[..64])?,
+            y: Fq2::from_bytes(&bytes[64..])?,
+        })
+    }
+}
+
 impl<P: GroupParams> PartialEq for AffineG<P> {
     fn eq(&self, other: &Self) -> bool {
         self.x == other.x && self.y == other.y

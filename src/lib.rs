@@ -131,6 +131,20 @@ pub trait Group
 #[repr(C)]
 pub struct G1(groups::G1);
 
+impl G1 {
+    /// Encodes x and y coordinates as 64 bytes Vec.
+    pub fn into_bytes(self) -> Vec<u8> {
+        self.0.to_affine().unwrap().into_bytes()
+    }
+
+    /// Decodes x and y coordinates if the point is on the curve.
+    pub fn from_bytes(bytes: &[u8]) -> Option<Self> {
+        Some(G1(
+            groups::AffineG::<groups::G1Params>::from_bytes(bytes)?.to_jacobian()
+        ))
+    }
+}
+
 impl Group for G1 {
     fn zero() -> Self {
         G1(groups::G1::zero())
@@ -228,6 +242,20 @@ impl Group for G2 {
         };
 
         self.0 = new.to_jacobian();
+    }
+}
+
+impl G2 {
+    /// Encodes x and y coordinates as 64 bytes Vec.
+    pub fn into_bytes(self) -> Vec<u8> {
+        self.0.to_affine().unwrap().into_bytes()
+    }
+
+    /// Decodes x and y coordinates.
+    pub fn from_bytes(bytes: &[u8]) -> Option<Self> {
+        Some(G2(
+            groups::AffineG::<groups::G2Params>::from_bytes(bytes)?.to_jacobian()
+        ))
     }
 }
 
