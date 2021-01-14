@@ -81,6 +81,67 @@ fn test_fq12() {
 }
 
 #[test]
+fn fq_test_into_bytes() {
+    let mut rng = rand::thread_rng();
+
+    for _ in 0..1000 {
+        let fq = Fq::random(&mut rng);
+        let vec = fq.into_bytes();
+        assert_eq!(vec.len(), 32);
+        assert_eq!(Fq::from_bytes(&vec).unwrap(), fq);
+    }
+}
+
+#[test]
+fn fq_test_zero_into_bytes() {
+    let fq = Fq::zero();
+    let vec = fq.into_bytes();
+    assert_eq!(vec.len(), 32);
+    assert_eq!(Fq::from_bytes(&vec).unwrap(), fq);
+}
+
+#[test]
+fn fr_test_one_into_bytes() {
+    let fr = Fr::one();
+    let vec = fr.into_bytes();
+    assert_eq!(vec.len(), 32);
+    assert_eq!(Fr::from_bytes(&vec).unwrap(), fr);
+}
+
+#[test]
+fn fq_test_one_into_bytes() {
+    let fq = Fq::one();
+    println!("{:?}", fq);
+    let vec = fq.into_bytes();
+    assert_eq!(vec.len(), 32);
+    assert_eq!(Fq::from_bytes(&vec).unwrap(), fq);
+}
+
+#[test]
+fn fq12_test_into_bytes() {
+    let mut rng = rand::thread_rng();
+
+    for _ in 0..1000 {
+        let fq12 = Fq12::random(&mut rng);
+        let vec = fq12.into_bytes();
+        assert_eq!(vec.len(), 384);
+        assert_eq!(Fq12::from_bytes(&vec).unwrap(), fq12);
+    }
+}
+
+#[test]
+fn fr_test_into_bytes() {
+    let mut rng = rand::thread_rng();
+
+    for _ in 0..1000 {
+        let fr = Fr::random(&mut rng);
+        let vec = fr.into_bytes();
+        assert_eq!(vec.len(), 32);
+        assert_eq!(Fr::from_bytes(&vec).unwrap(), fr);
+    }
+}
+
+#[test]
 fn fq12_test_vector() {
     let start = Fq12::new(
         Fq6::new(

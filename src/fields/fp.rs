@@ -71,14 +71,32 @@ macro_rules! field_impl {
                 }
             }
 
+            pub fn from_bytes(bytes: &[u8]) -> Option<Self> {
+                let mut buf = [0u8; 32];
+                buf.clone_from_slice(bytes);
+                let u = U256::from_bytes(&buf);
+                $name::new(u)
+            }
+
             pub fn interpret(buf: &[u8; 64]) -> Self {
                 $name::new(U512::interpret(buf).divrem(&U256($modulus)).1).unwrap()
+            }
+
+            pub fn into_bytes(self) -> Vec<u8> {
+                U256::from(self).to_bytes().into()
             }
 
             /// Returns the modulus
             #[inline]
             pub fn modulus() -> U256 {
                 U256($modulus)
+            }
+
+            pub fn sqrt(&self) -> Self {
+                // let two = U256::from(2);
+                // let p = Self::modulus().add(U256::one(), U256) / two;
+
+                self.clone()
             }
         }
 

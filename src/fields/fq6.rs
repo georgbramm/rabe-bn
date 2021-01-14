@@ -139,6 +139,22 @@ impl Fq6 {
         }
     }
 
+    pub fn into_bytes(self) -> Vec<u8> {
+        let mut bytes = self.c0.into_bytes();
+        bytes.extend(self.c1.into_bytes());
+        bytes.extend(self.c2.into_bytes());
+        bytes
+    }
+
+    pub fn from_bytes(bytes: &[u8]) -> Option<Self> {
+        assert_eq!(bytes.len(), 192);
+        Some(Fq6 {
+            c0: Fq2::from_bytes(&bytes[..64])?,
+            c1: Fq2::from_bytes(&bytes[64..128])?,
+            c2: Fq2::from_bytes(&bytes[128..])?,
+        })
+    }
+
     pub fn mul_by_nonresidue(&self) -> Self {
         Fq6 {
             c0: self.c2.mul_by_nonresidue(),

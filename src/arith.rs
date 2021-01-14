@@ -143,6 +143,23 @@ impl U256 {
         U512::random(rng).divrem(modulo).1
     }
 
+    /// Interpret bytes (mod `modulo`)
+    pub fn from_bytes(bytes: &[u8; 32]) -> U256 {
+        let mut n = [0; 4];
+        for l in 0..4 {
+            n[l] = BigEndian::read_u64(&bytes[(l * 8)..]);
+        }
+        U256(n)
+    }
+
+    pub fn to_bytes(&self) -> [u8; 32] {
+        let mut out = [0u8; 32];
+        for l in 0..4 {
+            BigEndian::write_u64(&mut out[(l * 8)..], self.0[l]);
+        }
+        out
+    }
+
     pub fn is_zero(&self) -> bool {
         self.0[0] == 0 && self.0[1] == 0 && self.0[2] == 0 && self.0[3] == 0
     }

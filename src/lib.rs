@@ -283,6 +283,13 @@ impl Gt {
     pub fn inverse(&self) -> Self {
         Gt(self.0.inverse().unwrap())
     }
+    /// Serializes the element as 384 bytes
+    pub fn into_bytes(self) -> Vec<u8> {
+        self.0.into_bytes()
+    }
+    pub fn from_bytes(bytes: &[u8]) -> Option<Self> {
+        Some(Gt(fields::Fq12::from_bytes(bytes)?))
+    }
 }
 
 pub trait SerializableGt
