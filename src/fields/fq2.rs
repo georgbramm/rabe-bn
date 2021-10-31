@@ -72,6 +72,20 @@ impl Fq2 {
         Fq2 { c0: c0, c1: c1 }
     }
 
+    pub fn into_bytes(self) -> Vec<u8> {
+        let mut bytes = self.c0.into_bytes();
+        bytes.extend(self.c1.into_bytes());
+        bytes
+    }
+
+    pub fn from_bytes(bytes: &[u8]) -> Option<Self> {
+        assert_eq!(bytes.len(), 64);
+        Some(Fq2 {
+            c0: Fq::from_bytes(&bytes[..32])?,
+            c1: Fq::from_bytes(&bytes[32..])?,
+        })
+    }
+
     pub fn scale(&self, by: Fq) -> Self {
         Fq2 {
             c0: self.c0 * by,

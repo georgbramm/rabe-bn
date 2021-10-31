@@ -76,6 +76,20 @@ impl Fq12 {
         Fq12 { c0: c0, c1: c1 }
     }
 
+    pub fn from_bytes(bytes: &[u8]) -> Option<Self> {
+        assert_eq!(bytes.len(), 384);
+        Some(Fq12 {
+            c0: Fq6::from_bytes(&bytes[..192])?,
+            c1: Fq6::from_bytes(&bytes[192..])?,
+        })
+    }
+
+    pub fn into_bytes(&self) -> Vec<u8> {
+        let mut bytes = self.c0.into_bytes();
+        bytes.extend(self.c1.into_bytes());
+        bytes
+    }
+
     fn final_exponentiation_first_chunk(&self) -> Option<Fq12> {
         match self.inverse() {
             Some(b) => {

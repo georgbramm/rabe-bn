@@ -4,6 +4,11 @@ use arith::U256;
 use std::fmt;
 use rand::Rng;
 
+#[cfg(feature = "digest")]
+use digest::FixedOutput;
+#[cfg(feature = "digest")]
+use generic_array::typenum::U32;
+
 use serde::ser::Serialize;
 use serde::de::DeserializeOwned;
 
@@ -20,6 +25,10 @@ pub trait GroupElement
     + Mul<Fr, Output = Self> {
     fn zero() -> Self;
     fn one() -> Self;
+    #[cfg(feature = "digest")]
+    fn hash_to_group<T>(digest: T) -> Self
+    where
+        T: FixedOutput<OutputSize = U32>;
     fn random<R: Rng>(rng: &mut R) -> Self;
     fn is_zero(&self) -> bool;
     fn double(&self) -> Self;
@@ -48,6 +57,40 @@ pub struct G<P: GroupParams> {
 pub struct AffineG<P: GroupParams> {
     x: P::Base,
     y: P::Base,
+}
+
+impl AffineG<G1Params> {
+    pub fn into_bytes(self) -> Vec<u8> {
+        let mut result = Vec::with_capacity(64);
+        result.extend(self.x.into_bytes());
+        result.extend(self.y.into_bytes());
+        result
+    }
+
+    pub fn from_bytes(bytes: &[u8]) -> Option<Self> {
+        // XXX check whether on curve.
+        Some(AffineG {
+            x: Fq::from_bytes(&bytes[..32])?,
+            y: Fq::from_bytes(&bytes[32..])?,
+        })
+    }
+}
+
+impl AffineG<G2Params> {
+    pub fn into_bytes(self) -> Vec<u8> {
+        let mut result = Vec::with_capacity(64);
+        result.extend(self.x.into_bytes());
+        result.extend(self.y.into_bytes());
+        result
+    }
+
+    pub fn from_bytes(bytes: &[u8]) -> Option<Self> {
+        // XXX check whether on curve.
+        Some(AffineG {
+            x: Fq2::from_bytes(&bytes[..64])?,
+            y: Fq2::from_bytes(&bytes[64..])?,
+        })
+    }
 }
 
 impl<P: GroupParams> PartialEq for AffineG<P> {
@@ -220,6 +263,14 @@ impl<P: GroupParams> GroupElement for G<P> {
 
     fn one() -> Self {
         P::one()
+    }
+
+    #[cfg(feature = "digest")]
+    fn hash_to_group<T>(digest: T) -> Self
+    where
+        T: FixedOutput<OutputSize = U32>,
+    {
+        Self::one()
     }
 
     fn random<R: Rng>(rng: &mut R) -> Self {
