@@ -20,19 +20,19 @@ use std::{
     ops::{Add, Sub, Mul, Neg}
 };
 use rand::{Rng, distributions::{Distribution, Standard}};
+use core::fmt;
 #[cfg(feature = "borsh")]
 use borsh::{BorshSerialize, BorshDeserialize};
-#[cfg(not(feature = "borsh"))]
+#[cfg(feature = "serde")]
 use serde::{
     de::DeserializeOwned,
     Serialize,
     Deserialize
 };
-use core::fmt;
 
 #[derive(Copy, Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "borsh", derive(BorshSerialize, BorshDeserialize))]
-#[cfg_attr(not(feature = "borsh"), derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[repr(C)]
 pub struct Fr(fields::Fr);
 
@@ -183,7 +183,7 @@ pub trait Group
     fn normalize(&mut self);
 }
 
-#[cfg(not(feature = "borsh"))]
+#[cfg(feature = "serde")]
 pub trait Group
 : 'static
 + Send
@@ -210,7 +210,7 @@ pub trait Group
 
 #[derive(Copy, Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "borsh", derive(BorshSerialize, BorshDeserialize))]
-#[cfg_attr(not(feature = "borsh"), derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[repr(C)]
 pub struct G1(groups::G1);
 
@@ -300,7 +300,7 @@ impl Debug for G1 {
 
 #[derive(Copy, Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "borsh", derive(BorshSerialize, BorshDeserialize))]
-#[cfg_attr(not(feature = "borsh"), derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[repr(C)]
 pub struct G2(groups::G2);
 
@@ -377,7 +377,7 @@ impl Debug for G2 {
 
 #[derive(Copy, Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "borsh", derive(BorshSerialize, BorshDeserialize))]
-#[cfg_attr(not(feature = "borsh"), derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[repr(C)]
 pub struct Gt(fields::Fq12);
 
@@ -400,7 +400,7 @@ impl Gt {
 pub trait SerializableGt
     : 'static + Copy + Clone + BorshSerialize + BorshDeserialize + PartialEq + Eq {
 }
-#[cfg(not(feature = "borsh"))]
+#[cfg(feature = "serde")]
 pub trait SerializableGt
 : 'static + Copy + Clone + Serialize + DeserializeOwned + PartialEq + Eq {
 }
