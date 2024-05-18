@@ -1,6 +1,6 @@
 [package]
 name = "rabe-bn"
-version = "0.4.20"
+version = "0.4.21"
 authors = [
     "Sean Bowe <ewillbefull@gmail.com>",
     "Bramm, Georg <georg.bramm@aisec.fraunhofer.de>"
@@ -23,7 +23,7 @@ serde = ["serde/std"]
 name = "api"
 
 [dependencies]
-borsh = { version = "0.9.3", optional = true, default-features = false }
-byteorder = "1.4.3"
+borsh = { version = "1.5.0", features = ["derive"], optional = true, default-features = false }
+byteorder = "1.5.0"
 rand = "0.8.5"
 serde = { version = "1.0", features = ["derive"], optional = true }
