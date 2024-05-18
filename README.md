@@ -14,7 +14,7 @@ Add the `bn` crate to your dependencies in `Cargo.toml`...
 
 ```toml
 [dependencies]
-rabe-bn = "0.4.20"
+rabe-bn = "0.4.21"
 ```
 
 If you prefer borsh instead of `serde`, you may use the `borsh` feature.
