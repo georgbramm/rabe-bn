@@ -5,7 +5,7 @@ use std::fmt;
 use rand::Rng;
 #[cfg(feature = "borsh")]
 use borsh::{BorshSerialize, BorshDeserialize};
-#[cfg(not(feature = "borsh"))]
+#[cfg(feature = "serde")]
 use serde::{de::DeserializeOwned, Serialize, Deserialize};
 
 pub trait GroupElement
@@ -30,19 +30,18 @@ pub trait GroupElement
 pub trait GroupParams: Sized {
     #[cfg(feature = "borsh")]
     type Base: FieldElement + BorshSerialize + BorshDeserialize + fmt::Display;
-    #[cfg(not(feature = "borsh"))]
+    #[cfg(feature = "serde")]
     type Base: FieldElement + Serialize + DeserializeOwned + fmt::Display;
 
     fn name() -> &'static str;
     fn one() -> G<Self>;
     fn coeff_b() -> Self::Base;
-    fn check_order() -> bool {
-        false
-    }
+    #[allow(dead_code)]
+    fn check_order() -> bool { false }
 }
 
 #[cfg_attr(feature = "borsh", derive(BorshSerialize, BorshDeserialize))]
-#[cfg_attr(not(feature = "borsh"), derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[repr(C)]
 pub struct G<P: GroupParams> {
     x: P::Base,
@@ -51,7 +50,7 @@ pub struct G<P: GroupParams> {
 }
 
 #[cfg_attr(feature = "borsh", derive(BorshSerialize, BorshDeserialize))]
-#[cfg_attr(not(feature = "borsh"), derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct AffineG<P: GroupParams> {
     x: P::Base,
     y: P::Base,
