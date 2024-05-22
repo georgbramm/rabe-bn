@@ -1,6 +1,6 @@
 [package]
 name = "rabe-bn"
-version = "0.4.22"
+version = "0.4.23"
 authors = [
     "Sean Bowe <ewillbefull@gmail.com>",
     "Bramm, Georg <georg.bramm@aisec.fraunhofer.de>"
@@ -16,14 +16,14 @@ exclude = ["rabe-bn.iml", "/.idea"]
 
 [features]
 default = ["serde"]
-borsh = ["borsh/std"]
-serde = ["serde/std"]
+borsh = ["borsh/derive"]
+serde = ["serde/derive"]
 
 [[bench]]
 name = "api"
 
 [dependencies]
-borsh = { version = "1.5.0", features = ["derive"], optional = true, default-features = false }
+borsh = { version = "1.5.0", optional = true, default-features = false }
 byteorder = "1.5.0"
 rand = "0.8.5"
-serde = { version = "1.0", features = ["derive"], optional = true }
+serde = { version = "1.0", optional = true, default-features = false }

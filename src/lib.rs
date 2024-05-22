@@ -1,3 +1,6 @@
+#[cfg(all(feature = "borsh", feature = "serde"))]
+compile_error!("feature \"borsh\" and feature \"serde\" cannot be enabled at the same time");
+
 extern crate rand;
 extern crate byteorder;
 extern crate core;
