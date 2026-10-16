@@ -1,5 +1,5 @@
 use super::GroupElement;
-use fields::{FieldElement, Fr};
+use crate::fields::{FieldElement, Fr};
 use rand::Rng;
 
 fn random_test_addition<G: GroupElement, R: Rng>(rng: &mut R) {
@@ -7,7 +7,6 @@ fn random_test_addition<G: GroupElement, R: Rng>(rng: &mut R) {
         let r1 = G::random(rng);
         let r2 = G::random(rng);
         let r3 = G::random(rng);
-
 
         assert_eq!((r1 + r2) + r3, r1 + (r2 + r3));
         assert!(((r1 + r2 + r3) - r2 - r3 - r1).is_zero());
@@ -101,4 +100,3 @@ pub fn group_trials<G: GroupElement>() {
     random_test_dh::<G, _>(&mut rng);
     random_test_equality::<G, _>(&mut rng);
 }
-

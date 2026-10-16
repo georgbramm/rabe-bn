@@ -1,32 +1,64 @@
-use rand::Rng;
-use std::ops::{Add, Sub, Mul, Neg};
 use super::FieldElement;
+use rand::Rng;
+use std::ops::{Add, Mul, Neg, Sub};
 
-use arith::{U512, U256};
-use core::fmt;
+use crate::arith::{U256, U512};
 #[cfg(feature = "borsh")]
-use borsh::{BorshSerialize, BorshDeserialize};
+use borsh::{BorshDeserialize, BorshSerialize};
+use core::fmt;
 #[cfg(feature = "serde")]
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
 macro_rules! field_impl {
-    ($name:ident, $modulus:expr, $rsquared:expr, $rcubed:expr, $one:expr, $inv:expr) => {
+    ($name:ident, $modulus:expr_2021, $rsquared:expr_2021, $rcubed:expr_2021, $one:expr_2021, $inv:expr_2021) => {
         #[derive(Copy, Clone, PartialEq, Eq, Debug)]
-        #[cfg_attr(feature = "borsh", derive(BorshSerialize, BorshDeserialize))]
-        #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+        #[cfg_attr(feature = "borsh", derive(BorshSerialize))]
+        #[cfg_attr(feature = "serde", derive(Serialize))]
         #[repr(C)]
         pub struct $name(U256);
+
+        // These are the Montgomery form of the element, and therefore *must* be below the modulus.
+        // The default/naive deserialization simply brings in the correct type and its literal
+        // value
+        #[cfg(feature = "serde")]
+        impl<'de> Deserialize<'de> for $name {
+            fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+                let limbs = U256::deserialize(deserializer)?;
+                if limbs < U256($modulus) {
+                    Ok($name(limbs))
+                } else {
+                    Err(serde::de::Error::custom(
+                        "field element is not below modulus",
+                    ))
+                }
+            }
+        }
+
+        #[cfg(feature = "borsh")]
+        impl BorshDeserialize for $name {
+            fn deserialize_reader<R: borsh::io::Read>(reader: &mut R) -> borsh::io::Result<Self> {
+                let limbs = U256::deserialize_reader(reader)?;
+                if limbs < U256($modulus) {
+                    Ok($name(limbs))
+                } else {
+                    Err(borsh::io::Error::new(
+                        borsh::io::ErrorKind::InvalidData,
+                        "field element is not below modulus",
+                    ))
+                }
+            }
+        }
 
         impl From<$name> for U256 {
             #[inline]
             fn from(mut a: $name) -> Self {
                 a.0.mul(&U256::one(), &U256($modulus), $inv);
-                
+
                 a.0
             }
         }
 
-		/*
+        /*
         impl Encodable for $name {
             fn encode<S: Encoder>(&self, s: &mut S) -> Result<(), S::Error> {
                 let normalized = U256::from(*self);
@@ -40,14 +72,20 @@ macro_rules! field_impl {
                 $name::new(try!(U256::decode(s))).ok_or_else(|| s.error("integer is not less than modulus"))
             }
         }
-        
+
         */
-		
+
         impl $name {
             pub fn from_str(s: &str) -> Option<Self> {
                 let ints: Vec<_> = {
                     let mut acc = Self::zero();
-                    (0..11).map(|_| {let tmp = acc; acc = acc + Self::one(); tmp}).collect()
+                    (0..11)
+                        .map(|_| {
+                            let tmp = acc;
+                            acc = acc + Self::one();
+                            tmp
+                        })
+                        .collect()
                 };
 
                 let mut res = Self::zero();
@@ -56,7 +94,7 @@ macro_rules! field_impl {
                         Some(d) => {
                             res = res * ints[10];
                             res = res + ints[d as usize];
-                        },
+                        }
                         None => {
                             return None;
                         }
@@ -104,7 +142,7 @@ macro_rules! field_impl {
             fn one() -> Self {
                 $name(U256($one))
             }
-            
+
             fn random<R: Rng + ?Sized>(rng: &mut R) -> Self {
                 $name(U256::random(rng, &U256($modulus)))
             }
@@ -116,7 +154,7 @@ macro_rules! field_impl {
 
             #[inline]
             fn into_bytes(self) -> Vec<u8> {
-                self.0.into_bytes()
+                U256::from(self).into_bytes()
             }
 
             fn inverse(mut self) -> Option<Self> {
@@ -180,8 +218,7 @@ macro_rules! field_impl {
                 write!(f, "{}", self.0)
             }
         }
-
-    }
+    };
 }
 
 field_impl!(

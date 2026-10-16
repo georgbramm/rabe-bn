@@ -1,15 +1,15 @@
-use std::ops::{Add, Sub, Neg, Mul};
-use fields::{FieldElement, Fq, Fq2, Fq12, Fr, const_fq, fq2_nonresidue};
-use arith::U256;
-use std::fmt;
-use rand::Rng;
+use crate::arith::U256;
+use crate::fields::{FieldElement, Fq, Fq2, Fq12, Fr, const_fq, fq2_nonresidue};
 #[cfg(feature = "borsh")]
-use borsh::{BorshSerialize, BorshDeserialize};
+use borsh::{BorshDeserialize, BorshSerialize};
+use rand::Rng;
 #[cfg(feature = "serde")]
-use serde::{de::DeserializeOwned, Serialize, Deserialize};
+use serde::{Deserialize, Serialize, de::DeserializeOwned};
+use std::fmt;
+use std::ops::{Add, Mul, Neg, Sub};
 
-pub trait GroupElement
-    : Sized
+pub trait GroupElement:
+    Sized
     + Copy
     + Clone
     + PartialEq
@@ -18,14 +18,14 @@ pub trait GroupElement
     + Add<Output = Self>
     + Sub<Output = Self>
     + Neg<Output = Self>
-    + Mul<Fr, Output = Self> {
+    + Mul<Fr, Output = Self>
+{
     fn zero() -> Self;
     fn one() -> Self;
     fn random<R: Rng + ?Sized>(rng: &mut R) -> Self;
     fn is_zero(&self) -> bool;
     fn double(&self) -> Self;
 }
-
 
 pub trait GroupParams: Sized {
     #[cfg(feature = "borsh")]
@@ -36,12 +36,15 @@ pub trait GroupParams: Sized {
     fn name() -> &'static str;
     fn one() -> G<Self>;
     fn coeff_b() -> Self::Base;
-    #[allow(dead_code)]
-    fn check_order() -> bool { false }
+    /// True when curve group has a cofactor above 1, i.e. when being on the curve does not
+    /// imply being in the prime-order subgroup. Used in Deserializer implementations.
+    fn check_order() -> bool {
+        false
+    }
 }
 
-#[cfg_attr(feature = "borsh", derive(BorshSerialize, BorshDeserialize))]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "borsh", derive(BorshSerialize,))]
+#[cfg_attr(feature = "serde", derive(Serialize))]
 #[repr(C)]
 pub struct G<P: GroupParams> {
     x: P::Base,
@@ -49,11 +52,75 @@ pub struct G<P: GroupParams> {
     z: P::Base,
 }
 
-#[cfg_attr(feature = "borsh", derive(BorshSerialize, BorshDeserialize))]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "borsh", derive(BorshSerialize))]
+#[cfg_attr(feature = "serde", derive(Serialize))]
 pub struct AffineG<P: GroupParams> {
     x: P::Base,
     y: P::Base,
+}
+
+// Deserialization builds a point that needs to ensure they are on the curve and in the prime-order
+// subgroup; the 'naive'/default deserialization doesn't do either and just copies provided values
+#[cfg(feature = "serde")]
+#[derive(Deserialize)]
+struct RawJacobian<B> {
+    x: B,
+    y: B,
+    z: B,
+}
+
+#[cfg(feature = "serde")]
+#[derive(Deserialize)]
+struct RawAffine<B> {
+    x: B,
+    y: B,
+}
+
+#[cfg(feature = "serde")]
+impl<'de, P: GroupParams> Deserialize<'de> for G<P> {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let raw = RawJacobian::<P::Base>::deserialize(deserializer)?;
+        G {
+            x: raw.x,
+            y: raw.y,
+            z: raw.z,
+        }
+        .validated()
+        .map_err(serde::de::Error::custom)
+    }
+}
+
+#[cfg(feature = "serde")]
+impl<'de, P: GroupParams> Deserialize<'de> for AffineG<P> {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let raw = RawAffine::<P::Base>::deserialize(deserializer)?;
+        AffineG { x: raw.x, y: raw.y }
+            .validated()
+            .map_err(serde::de::Error::custom)
+    }
+}
+
+#[cfg(feature = "borsh")]
+impl<P: GroupParams> BorshDeserialize for G<P> {
+    fn deserialize_reader<R: borsh::io::Read>(reader: &mut R) -> borsh::io::Result<Self> {
+        let x = P::Base::deserialize_reader(reader)?;
+        let y = P::Base::deserialize_reader(reader)?;
+        let z = P::Base::deserialize_reader(reader)?;
+        G { x, y, z }
+            .validated()
+            .map_err(|e| borsh::io::Error::new(borsh::io::ErrorKind::InvalidData, e))
+    }
+}
+
+#[cfg(feature = "borsh")]
+impl<P: GroupParams> BorshDeserialize for AffineG<P> {
+    fn deserialize_reader<R: borsh::io::Read>(reader: &mut R) -> borsh::io::Result<Self> {
+        let x = P::Base::deserialize_reader(reader)?;
+        let y = P::Base::deserialize_reader(reader)?;
+        AffineG { x, y }
+            .validated()
+            .map_err(|e| borsh::io::Error::new(borsh::io::ErrorKind::InvalidData, e))
+    }
 }
 
 impl<P: GroupParams> PartialEq for AffineG<P> {
@@ -72,21 +139,14 @@ impl<P: GroupParams> fmt::Debug for G<P> {
 
 impl<P: GroupParams> Clone for G<P> {
     fn clone(&self) -> Self {
-        G {
-            x: self.x,
-            y: self.y,
-            z: self.z,
-        }
+        *self
     }
 }
 impl<P: GroupParams> Copy for G<P> {}
 
 impl<P: GroupParams> Clone for AffineG<P> {
     fn clone(&self) -> Self {
-        AffineG {
-            x: self.x,
-            y: self.y,
-        }
+        *self
     }
 }
 impl<P: GroupParams> Copy for AffineG<P> {}
@@ -111,25 +171,60 @@ impl<P: GroupParams> PartialEq for G<P> {
         let z1_cubed = self.z * z1_squared;
         let z2_cubed = other.z * z2_squared;
 
-        if self.y * z2_cubed != other.y * z1_cubed {
-            return false;
-        }
-
-        return true;
+        !(self.y * z2_cubed != other.y * z1_cubed)
     }
 }
 
 impl<P: GroupParams> Eq for G<P> {}
 
 impl<P: GroupParams> G<P> {
-    pub fn into_bytes(&self) -> Vec<u8> {
-        [
-            self.x.into_bytes(),
-            self.y.into_bytes(),
-            self.z.into_bytes()
-        ].concat()
+    /// Checks that a point which is built from potentially untrusted coordinates is, in fact,
+    /// valid. Infinity is accepted because `P` and `-P` addition leaves `x` and `y` with `z == 0`
+    fn validated(self) -> Result<Self, &'static str> {
+        if self.z.is_zero() {
+            return Ok(Self::zero());
+        }
+
+        // y^2 = x^3 + b: Y^2 = X^3 + b + Z^6
+        let z2 = self.z.squared();
+        let z6 = z2.squared() * z2;
+        if self.y.squared() != self.x.squared() * self.x + P::coeff_b() * z6 {
+            return Err("point is not on the curve");
+        }
+
+        if P::check_order() && !self.mul_by_u256(&Fr::modulus()).is_zero() {
+            return Err("point is not in the prime-order subgroup");
+        }
+
+        Ok(self)
     }
-    pub fn to_affine(&self) -> Option<AffineG<P>> {
+
+    /// Multiply by any arbitrary 256-bit integer (e.x. those which cannot be written as a `Fr`)
+    fn mul_by_u256(&self, k: &U256) -> Self {
+        let mut res = G::zero();
+        let mut flag = false;
+        for i in k.bits() {
+            if flag {
+                res = res.double();
+            }
+
+            if i {
+                flag = true;
+                res = res + *self;
+            }
+        }
+
+        res
+    }
+
+    pub fn into_bytes(self) -> Vec<u8> {
+        match self.to_affine() {
+            Some(a) => [a.x.into_bytes(), a.y.into_bytes()].concat(),
+            None => vec![0u8; 2 * P::Base::zero().into_bytes().len()],
+        }
+    }
+
+    pub fn to_affine(self) -> Option<AffineG<P>> {
         if self.z.is_zero() {
             None
         } else if self.z == P::Base::one() {
@@ -150,7 +245,12 @@ impl<P: GroupParams> G<P> {
 }
 
 impl<P: GroupParams> AffineG<P> {
-    pub fn to_jacobian(&self) -> G<P> {
+    /// Affine points cannot be at infinity. Therefore, this only checks the equation itself and
+    /// order (where relevant/implemented)
+    fn validated(self) -> Result<Self, &'static str> {
+        self.to_jacobian().validated().map(|_| self)
+    }
+    pub fn to_jacobian(self) -> G<P> {
         G {
             x: self.x,
             y: self.y,
@@ -212,21 +312,7 @@ impl<P: GroupParams> Mul<Fr> for G<P> {
     type Output = G<P>;
 
     fn mul(self, other: Fr) -> G<P> {
-        let mut res = G::zero();
-        let mut found_one = false;
-
-        for i in U256::from(other).bits() {
-            if found_one {
-                res = res.double();
-            }
-
-            if i {
-                found_one = true;
-                res = res + self;
-            }
-        }
-
-        res
+        self.mul_by_u256(&U256::from(other))
     }
 }
 
@@ -319,27 +405,23 @@ impl GroupParams for G1Params {
     fn one() -> G<Self> {
         G {
             x: Fq::one(),
-            y: const_fq(
-                [
-                    0xa6ba871b8b1e1b3a,
-                    0x14f1d651eb8e167b,
-                    0xccdd46def0f28c58,
-                    0x1c14ef83340fbe5e,
-                ],
-            ),
+            y: const_fq([
+                0xa6ba871b8b1e1b3a,
+                0x14f1d651eb8e167b,
+                0xccdd46def0f28c58,
+                0x1c14ef83340fbe5e,
+            ]),
             z: Fq::one(),
         }
     }
 
     fn coeff_b() -> Fq {
-        const_fq(
-            [
-                0x7a17caa950ad28d7,
-                0x1f6ac17ae15521b9,
-                0x334bea4e696bd284,
-                0x2a1f6744ce179d8e,
-            ],
-        )
+        const_fq([
+            0x7a17caa950ad28d7,
+            0x1f6ac17ae15521b9,
+            0x334bea4e696bd284,
+            0x2a1f6744ce179d8e,
+        ])
     }
 }
 
@@ -357,40 +439,32 @@ impl GroupParams for G2Params {
     fn one() -> G<Self> {
         G {
             x: Fq2::new(
-                const_fq(
-                    [
-                        0x8e83b5d102bc2026,
-                        0xdceb1935497b0172,
-                        0xfbb8264797811adf,
-                        0x19573841af96503b,
-                    ],
-                ),
-                const_fq(
-                    [
-                        0xafb4737da84c6140,
-                        0x6043dd5a5802d8c4,
-                        0x09e950fc52a02f86,
-                        0x14fef0833aea7b6b,
-                    ],
-                ),
+                const_fq([
+                    0x8e83b5d102bc2026,
+                    0xdceb1935497b0172,
+                    0xfbb8264797811adf,
+                    0x19573841af96503b,
+                ]),
+                const_fq([
+                    0xafb4737da84c6140,
+                    0x6043dd5a5802d8c4,
+                    0x09e950fc52a02f86,
+                    0x14fef0833aea7b6b,
+                ]),
             ),
             y: Fq2::new(
-                const_fq(
-                    [
-                        0x619dfa9d886be9f6,
-                        0xfe7fd297f59e9b78,
-                        0xff9e1a62231b7dfe,
-                        0x28fd7eebae9e4206,
-                    ],
-                ),
-                const_fq(
-                    [
-                        0x64095b56c71856ee,
-                        0xdc57f922327d3cbb,
-                        0x55f935be33351076,
-                        0x0da4a0e693fd6482,
-                    ],
-                ),
+                const_fq([
+                    0x619dfa9d886be9f6,
+                    0xfe7fd297f59e9b78,
+                    0xff9e1a62231b7dfe,
+                    0x28fd7eebae9e4206,
+                ]),
+                const_fq([
+                    0x64095b56c71856ee,
+                    0xdc57f922327d3cbb,
+                    0x55f935be33351076,
+                    0x0da4a0e693fd6482,
+                ]),
             ),
             z: Fq2::one(),
         }
@@ -398,22 +472,18 @@ impl GroupParams for G2Params {
 
     fn coeff_b() -> Fq2 {
         Fq2::new(
-            const_fq(
-                [
-                    0x3bf938e377b802a8,
-                    0x020b1b273633535d,
-                    0x26b7edf049755260,
-                    0x2514c6324384a86d,
-                ],
-            ),
-            const_fq(
-                [
-                    0x38e7ecccd1dcff67,
-                    0x65f0b37d93ce0d3e,
-                    0xd749d0dd22ac00aa,
-                    0x0141b9ce4a688d4d,
-                ],
-            ),
+            const_fq([
+                0x3bf938e377b802a8,
+                0x020b1b273633535d,
+                0x26b7edf049755260,
+                0x2514c6324384a86d,
+            ]),
+            const_fq([
+                0x38e7ecccd1dcff67,
+                0x65f0b37d93ce0d3e,
+                0xd749d0dd22ac00aa,
+                0x0141b9ce4a688d4d,
+            ]),
         )
     }
 
@@ -468,69 +538,57 @@ fn twist() -> Fq2 {
 
 #[inline]
 fn two_inv() -> Fq {
-    const_fq(
-        [
-            9781510331150239090,
-            15059239858463337189,
-            10331104244869713732,
-            2249375503248834476,
-        ],
-    )
+    const_fq([
+        9781510331150239090,
+        15059239858463337189,
+        10331104244869713732,
+        2249375503248834476,
+    ])
 }
 
 #[inline]
 fn ate_loop_count() -> U256 {
-    U256(
-        [
-            0x9d797039be763ba8,
-            0x0000000000000001,
-            0x0000000000000000,
-            0x0000000000000000,
-        ],
-    )
+    U256([
+        0x9d797039be763ba8,
+        0x0000000000000001,
+        0x0000000000000000,
+        0x0000000000000000,
+    ])
 }
 
 #[inline]
 fn twist_mul_by_q_x() -> Fq2 {
     Fq2::new(
-        const_fq(
-            [
-                13075984984163199792,
-                3782902503040509012,
-                8791150885551868305,
-                1825854335138010348,
-            ],
-        ),
-        const_fq(
-            [
-                7963664994991228759,
-                12257807996192067905,
-                13179524609921305146,
-                2767831111890561987,
-            ],
-        ),
+        const_fq([
+            13075984984163199792,
+            3782902503040509012,
+            8791150885551868305,
+            1825854335138010348,
+        ]),
+        const_fq([
+            7963664994991228759,
+            12257807996192067905,
+            13179524609921305146,
+            2767831111890561987,
+        ]),
     )
 }
 
 #[inline]
 fn twist_mul_by_q_y() -> Fq2 {
     Fq2::new(
-        const_fq(
-            [
-                16482010305593259561,
-                13488546290961988299,
-                3578621962720924518,
-                2681173117283399901,
-            ],
-        ),
-        const_fq(
-            [
-                11661927080404088775,
-                553939530661941723,
-                7860678177968807019,
-                3208568454732775116,
-            ],
-        ),
+        const_fq([
+            16482010305593259561,
+            13488546290961988299,
+            3578621962720924518,
+            2681173117283399901,
+        ]),
+        const_fq([
+            11661927080404088775,
+            553939530661941723,
+            7860678177968807019,
+            3208568454732775116,
+        ]),
     )
 }
 
@@ -564,11 +622,9 @@ impl G2Precomp {
 
             let c = &self.coeffs[idx];
             idx += 1;
-            f = f.squared().mul_by_024(
-                c.ell_0,
-                c.ell_vw.scale(g1.y),
-                c.ell_vv.scale(g1.x),
-            );
+            f = f
+                .squared()
+                .mul_by_024(c.ell_0, c.ell_vw.scale(g1.y), c.ell_vv.scale(g1.x));
 
             if i {
                 let c = &self.coeffs[idx];
@@ -590,16 +646,18 @@ impl G2Precomp {
 
 #[test]
 fn test_miller_loop() {
-    use fields::Fq6;
+    use crate::fields::Fq6;
 
-    let g1 = G1::one() *
-        Fr::from_str(
+    let g1 = G1::one()
+        * Fr::from_str(
             "18097487326282793650237947474982649264364522469319914492172746413872781676",
-        ).unwrap();
-    let g2 = G2::one() *
-        Fr::from_str(
+        )
+        .unwrap();
+    let g2 = G2::one()
+        * Fr::from_str(
             "20390255904278144451778773028944684152769293537511418234311120800877067946",
-        ).unwrap();
+        )
+        .unwrap();
 
     let g1_pre = g1.to_affine().unwrap();
     let g2_pre = g2.to_affine().unwrap().precompute();
@@ -656,10 +714,7 @@ impl AffineG<G2Params> {
         coeffs.push(r.mixed_addition_step_for_flipped_miller_loop(&q1));
         coeffs.push(r.mixed_addition_step_for_flipped_miller_loop(&q2));
 
-        G2Precomp {
-            q: *self,
-            coeffs: coeffs,
-        }
+        G2Precomp { q: *self, coeffs }
     }
 }
 
@@ -714,10 +769,11 @@ impl G2 {
 
 #[test]
 fn test_prepared_g2() {
-    let g2 = G2::one() *
-        Fr::from_str(
+    let g2 = G2::one()
+        * Fr::from_str(
             "20390255904278144451778773028944684152769293537511418234311120800877067946",
-        ).unwrap();
+        )
+        .unwrap();
 
     let g2_p = g2.to_affine().unwrap().precompute();
 
@@ -845,27 +901,28 @@ fn test_prepared_g2() {
 pub fn pairing(p: &G1, q: &G2) -> Fq12 {
     match (p.to_affine(), q.to_affine()) {
         (None, _) | (_, None) => Fq12::one(),
-        (Some(p), Some(q)) => {
-            q.precompute()
-                .miller_loop(&p)
-                .final_exponentiation()
-                .expect("miller loop cannot produce zero")
-        }
+        (Some(p), Some(q)) => q
+            .precompute()
+            .miller_loop(&p)
+            .final_exponentiation()
+            .expect("miller loop cannot produce zero"),
     }
 }
 
 #[test]
 fn test_reduced_pairing() {
-    use fields::Fq6;
+    use crate::fields::Fq6;
 
-    let g1 = G1::one() *
-        Fr::from_str(
+    let g1 = G1::one()
+        * Fr::from_str(
             "18097487326282793650237947474982649264364522469319914492172746413872781676",
-        ).unwrap();
-    let g2 = G2::one() *
-        Fr::from_str(
+        )
+        .unwrap();
+    let g2 = G2::one()
+        * Fr::from_str(
             "20390255904278144451778773028944684152769293537511418234311120800877067946",
-        ).unwrap();
+        )
+        .unwrap();
 
     let gt = pairing(&g1, &g2);
 
@@ -874,52 +931,64 @@ fn test_reduced_pairing() {
             Fq2::new(
                 Fq::from_str(
                     "7520311483001723614143802378045727372643587653754534704390832890681688842501",
-                ).unwrap(),
+                )
+                .unwrap(),
                 Fq::from_str(
                     "20265650864814324826731498061022229653175757397078253377158157137251452249882",
-                ).unwrap(),
+                )
+                .unwrap(),
             ),
             Fq2::new(
                 Fq::from_str(
                     "11942254371042183455193243679791334797733902728447312943687767053513298221130",
-                ).unwrap(),
+                )
+                .unwrap(),
                 Fq::from_str(
                     "759657045325139626991751731924144629256296901790485373000297868065176843620",
-                ).unwrap(),
+                )
+                .unwrap(),
             ),
             Fq2::new(
                 Fq::from_str(
                     "16045761475400271697821392803010234478356356448940805056528536884493606035236",
-                ).unwrap(),
+                )
+                .unwrap(),
                 Fq::from_str(
                     "4715626119252431692316067698189337228571577552724976915822652894333558784086",
-                ).unwrap(),
+                )
+                .unwrap(),
             ),
         ),
         Fq6::new(
             Fq2::new(
                 Fq::from_str(
                     "14901948363362882981706797068611719724999331551064314004234728272909570402962",
-                ).unwrap(),
+                )
+                .unwrap(),
                 Fq::from_str(
                     "11093203747077241090565767003969726435272313921345853819385060670210834379103",
-                ).unwrap(),
+                )
+                .unwrap(),
             ),
             Fq2::new(
                 Fq::from_str(
                     "17897835398184801202802503586172351707502775171934235751219763553166796820753",
-                ).unwrap(),
+                )
+                .unwrap(),
                 Fq::from_str(
                     "1344517825169318161285758374052722008806261739116142912817807653057880346554",
-                ).unwrap(),
+                )
+                .unwrap(),
             ),
             Fq2::new(
                 Fq::from_str(
                     "11123896897251094532909582772961906225000817992624500900708432321664085800838",
-                ).unwrap(),
+                )
+                .unwrap(),
                 Fq::from_str(
                     "17453370448280081813275586256976217762629631160552329276585874071364454854650",
-                ).unwrap(),
+                )
+                .unwrap(),
             ),
         ),
     );
@@ -965,4 +1034,51 @@ fn test_y_at_point_at_infinity() {
 
     assert!(G2::zero().y == Fq2::one());
     assert!((-G2::zero()).y == Fq2::one());
+}
+// The bytes for a point don't depend on the Jacobian representation and therefore should not
+// include `z`
+#[test]
+fn point_bytes_do_not_depend_on_z() {
+    extern crate rand;
+    extern crate serde_json;
+
+    use crate::{Fr, G1, G2, Group};
+    use rand::{Rng, SeedableRng, rngs::StdRng};
+
+    let mut rng = StdRng::seed_from_u64(250);
+    let p: G1 = rng.r#gen();
+    let q: G2 = rng.r#gen();
+
+    // For example, this sum has a *different* z than a point that is made by one multiplication
+    let p2 = p + p;
+    let p2_other = p * (Fr::one() + Fr::one());
+    assert!(p2 == p2_other);
+    assert_eq!(p2.into_bytes(), p2_other.into_bytes());
+
+    let mut normalized = p2;
+    normalized.normalize();
+    assert_eq!(p2.into_bytes(), normalized.into_bytes());
+
+    let q2 = q + q;
+    let mut normalized = q2;
+    normalized.normalize();
+    assert_eq!(q2.into_bytes(), normalized.into_bytes());
+}
+
+#[test]
+fn test_identity_bytes_are_always_zero() {
+    extern crate rand;
+    extern crate serde_json;
+
+    use crate::{G1, G2, Group};
+    use rand::{Rng, SeedableRng, rngs::StdRng};
+
+    let mut rng = StdRng::seed_from_u64(250);
+    let p: G1 = rng.r#gen();
+    let stale = p + (-p);
+    assert_eq!(stale.into_bytes(), G1::zero().into_bytes());
+    assert!(G1::zero().into_bytes().iter().all(|b| *b == 0));
+    assert!(G2::zero().into_bytes().iter().all(|b| *b == 0));
+    assert_eq!(G1::zero().into_bytes().len(), 64);
+    assert_eq!(G2::zero().into_bytes().len(), 128);
 }

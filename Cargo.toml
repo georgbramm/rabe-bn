@@ -1,14 +1,14 @@
 [package]
 name = "rabe-bn"
-version = "0.4.23"
+version = "0.5.0"
+edition = "2024"
 authors = [
-    "Sean Bowe <ewillbefull@gmail.com>",
-    "Bramm, Georg <georg.bramm@aisec.fraunhofer.de>"
+  "Sean Bowe <ewillbefull@gmail.com>",
+  "Bramm, Georg <georg.bramm@aisec.fraunhofer.de>",
 ]
 description = "Pairing cryptography with the Barreto-Naehrig curve. Update to use latest rand and serde crates."
-keywords = ["pairing","crypto","cryptography"]
+keywords = ["pairing", "crypto", "cryptography"]
 readme = "README.md"
-homepage = "https://github.com/georgbramm/rabe-bn"
 repository = "https://github.com/georgbramm/rabe-bn"
 documentation = "https://docs.rs/rabe-bn"
 license = "MIT OR Apache-2.0"
@@ -19,11 +19,16 @@ default = ["serde"]
 borsh = ["borsh/derive"]
 serde = ["serde/derive"]
 
-[[bench]]
-name = "api"
-
 [dependencies]
 borsh = { version = "1.5.0", optional = true, default-features = false }
 byteorder = "1.5.0"
 rand = "0.8.5"
 serde = { version = "1.0", optional = true, default-features = false }
+
+[dev-dependencies]
+serde_json = "1.0.151"
+
+# This previously hid cases of bugs, so it should be carefully considered and checked before
+# removal to ensure there is not silent overflow occurring
+[profile.release]
+debug-assertions = true

@@ -1,11 +1,11 @@
 #[cfg(all(feature = "borsh", feature = "serde"))]
 compile_error!("feature \"borsh\" and feature \"serde\" cannot be enabled at the same time");
 
-extern crate rand;
-extern crate byteorder;
-extern crate core;
 #[cfg(feature = "borsh")]
 extern crate borsh;
+extern crate byteorder;
+extern crate core;
+extern crate rand;
 #[cfg(feature = "serde")]
 extern crate serde;
 
@@ -13,24 +13,21 @@ pub mod arith;
 mod fields;
 mod groups;
 
-use fields::FieldElement;
-use groups::GroupElement;
-use std::{
-    fmt::{
-        Debug,
-        Formatter
-    },
-    ops::{Add, Sub, Mul, Neg}
-};
-use rand::{Rng, distributions::{Distribution, Standard}};
-use core::fmt;
+use crate::fields::FieldElement;
+use crate::groups::GroupElement;
 #[cfg(feature = "borsh")]
-use borsh::{BorshSerialize, BorshDeserialize};
+use borsh::{BorshDeserialize, BorshSerialize};
+use core::fmt;
+use rand::{
+    Rng,
+    distributions::{Distribution, Standard},
+};
 #[cfg(feature = "serde")]
-use serde::{
-    de::DeserializeOwned,
-    Serialize,
-    Deserialize
+use serde::{Deserialize, Serialize, de::DeserializeOwned};
+use std::{
+    fmt::{Debug, Formatter},
+    ops::{Add, Mul, Neg, Sub},
+    str::FromStr,
 };
 
 #[derive(Copy, Clone, PartialEq, Eq)]
@@ -60,6 +57,17 @@ impl From<FieldError> for CurveError {
     }
 }
 
+#[derive(Debug, PartialEq, Eq)]
+pub struct ParseFrError;
+
+impl FromStr for Fr {
+    type Err = ParseFrError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        fields::Fr::from_str(s).map(Fr).ok_or(ParseFrError)
+    }
+}
+
 impl Fr {
     pub fn zero() -> Self {
         Fr(fields::Fr::zero())
@@ -71,11 +79,8 @@ impl Fr {
     pub fn pow(&self, exp: Fr) -> Self {
         Fr(self.0.pow(exp.0))
     }
-    pub fn from_str(s: &str) -> Option<Self> {
-        fields::Fr::from_str(s).map(|e| Fr(e))
-    }
     pub fn inverse(&self) -> Option<Self> {
-        self.0.inverse().map(|e| Fr(e))
+        self.0.inverse().map(Fr)
     }
     pub fn is_zero(&self) -> bool {
         self.0.is_zero()
@@ -86,9 +91,9 @@ impl Fr {
     pub fn from_slice(slice: &[u8]) -> Result<Self, FieldError> {
         arith::U256::from_slice(slice)
             .map_err(|_| FieldError::InvalidSliceLength)
-            .map(|x| Fr::new_mul_factor(x))
+            .map(Fr::new_mul_factor)
     }
-    pub fn into_bytes(&self) -> Vec<u8> {
+    pub fn into_bytes(self) -> Vec<u8> {
         self.0.into_bytes()
     }
     pub fn new_mul_factor(val: arith::U256) -> Self {
@@ -130,14 +135,14 @@ impl Mul for Fr {
 
 impl Distribution<crate::fields::Fr> for Standard {
     fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> crate::fields::Fr {
-        let random_bytes: Vec<u8> = (0..64).map(|_| { rng.gen::<u8>() }).collect();
+        let random_bytes: Vec<u8> = (0..64).map(|_| rng.r#gen::<u8>()).collect();
         crate::fields::Fr::interpret(&pop(random_bytes.as_ref()))
     }
 }
 
 impl Distribution<Fr> for Standard {
     fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> Fr {
-        let random_bytes: Vec<u8> = (0..64).map(|_| { rng.gen::<u8>() }).collect();
+        let random_bytes: Vec<u8> = (0..64).map(|_| rng.r#gen::<u8>()).collect();
         Fr::interpret(&pop(random_bytes.as_ref()))
     }
 }
@@ -156,58 +161,56 @@ impl std::convert::From<Fr> for Vec<u8> {
 
 impl Debug for Fr {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Fr")
-            .field("::Fr", &self.0)
-            .finish()
+        f.debug_struct("Fr").field("::Fr", &self.0).finish()
     }
 }
 #[cfg(feature = "borsh")]
-pub trait Group
-: 'static
-+ Send
-+ Sync
-+ Copy
-+ Clone
-+ PartialEq
-+ Eq
-+ BorshSerialize
-+ BorshDeserialize
-+ Sized
-+ Add<Self, Output = Self>
-+ Sub<Self, Output = Self>
-+ Neg<Output = Self>
-+ Mul<Fr, Output = Self>
+pub trait Group:
+    'static
+    + Send
+    + Sync
+    + Copy
+    + Clone
+    + PartialEq
+    + Eq
+    + BorshSerialize
+    + BorshDeserialize
+    + Sized
+    + Add<Self, Output = Self>
+    + Sub<Self, Output = Self>
+    + Neg<Output = Self>
+    + Mul<Fr, Output = Self>
 {
     fn zero() -> Self;
     fn one() -> Self;
     fn random<R: Rng + ?Sized>(rng: &mut R) -> Self;
     fn is_zero(&self) -> bool;
-    fn into_bytes(&self) -> Vec<u8>;
+    fn into_bytes(self) -> Vec<u8>;
     fn normalize(&mut self);
 }
 
 #[cfg(feature = "serde")]
-pub trait Group
-: 'static
-+ Send
-+ Sync
-+ Copy
-+ Clone
-+ PartialEq
-+ Eq
-+ Serialize
-+ DeserializeOwned
-+ Sized
-+ Add<Self, Output = Self>
-+ Sub<Self, Output = Self>
-+ Neg<Output = Self>
-+ Mul<Fr, Output = Self>
+pub trait Group:
+    'static
+    + Send
+    + Sync
+    + Copy
+    + Clone
+    + PartialEq
+    + Eq
+    + Serialize
+    + DeserializeOwned
+    + Sized
+    + Add<Self, Output = Self>
+    + Sub<Self, Output = Self>
+    + Neg<Output = Self>
+    + Mul<Fr, Output = Self>
 {
     fn zero() -> Self;
     fn one() -> Self;
     fn random<R: Rng + ?Sized>(rng: &mut R) -> Self;
     fn is_zero(&self) -> bool;
-    fn into_bytes(&self) -> Vec<u8>;
+    fn into_bytes(self) -> Vec<u8>;
     fn normalize(&mut self);
 }
 
@@ -230,7 +233,7 @@ impl Group for G1 {
     fn is_zero(&self) -> bool {
         self.0.is_zero()
     }
-    fn into_bytes(&self) -> Vec<u8> {
+    fn into_bytes(self) -> Vec<u8> {
         self.0.into_bytes()
     }
     fn normalize(&mut self) {
@@ -295,9 +298,7 @@ impl std::convert::From<G1> for Vec<u8> {
 
 impl Debug for G1 {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("G1")
-            .field("::G1", &self.0)
-            .finish()
+        f.debug_struct("G1").field("::G1", &self.0).finish()
     }
 }
 
@@ -320,7 +321,9 @@ impl Group for G2 {
     fn is_zero(&self) -> bool {
         self.0.is_zero()
     }
-    fn into_bytes(&self) -> Vec<u8> { self.0.into_bytes() }
+    fn into_bytes(self) -> Vec<u8> {
+        self.0.into_bytes()
+    }
 
     fn normalize(&mut self) {
         let new = match self.0.to_affine() {
@@ -372,19 +375,26 @@ impl Distribution<G2> for Standard {
 
 impl Debug for G2 {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("G2")
-            .field("::G2", &self.0)
-            .finish()
+        f.debug_struct("G2").field("::G2", &self.0).finish()
     }
 }
 
 #[derive(Copy, Clone, PartialEq, Eq)]
-#[cfg_attr(feature = "borsh", derive(BorshSerialize, BorshDeserialize))]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "borsh", derive(BorshSerialize))]
+#[cfg_attr(feature = "serde", derive(Serialize))]
 #[repr(C)]
 pub struct Gt(fields::Fq12);
 
 impl Gt {
+    /// Checks `Fq12` from untrusted data; `Gt` is the subgroup of order `r`, so we check that
+    /// `g^r == 1` and reject `0` to avoid a latent panic if inverse is called later
+    fn validated(value: fields::Fq12) -> Result<Self, &'static str> {
+        if value.pow(fields::Fr::modulus()) == fields::Fq12::one() {
+            Ok(Gt(value))
+        } else {
+            Err("element is not in order-r subgroup")
+        }
+    }
     pub fn one() -> Self {
         Gt(fields::Fq12::one())
     }
@@ -394,21 +404,38 @@ impl Gt {
     pub fn inverse(&self) -> Self {
         Gt(self.0.inverse().unwrap())
     }
-    pub fn into_bytes(&self) -> Vec<u8> {
+    pub fn into_bytes(self) -> Vec<u8> {
         self.0.into_bytes()
     }
 }
 
 #[cfg(feature = "borsh")]
-pub trait SerializableGt
-    : 'static + Copy + Clone + BorshSerialize + BorshDeserialize + PartialEq + Eq {
+pub trait SerializableGt:
+    'static + Copy + Clone + BorshSerialize + BorshDeserialize + PartialEq + Eq
+{
 }
 #[cfg(feature = "serde")]
-pub trait SerializableGt
-: 'static + Copy + Clone + Serialize + DeserializeOwned + PartialEq + Eq {
+pub trait SerializableGt:
+    'static + Copy + Clone + Serialize + DeserializeOwned + PartialEq + Eq
+{
 }
 
 impl SerializableGt for Gt {}
+
+#[cfg(feature = "serde")]
+impl<'de> Deserialize<'de> for Gt {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        Gt::validated(fields::Fq12::deserialize(deserializer)?).map_err(serde::de::Error::custom)
+    }
+}
+
+#[cfg(feature = "borsh")]
+impl BorshDeserialize for Gt {
+    fn deserialize_reader<R: borsh::io::Read>(reader: &mut R) -> borsh::io::Result<Self> {
+        Gt::validated(fields::Fq12::deserialize_reader(reader)?)
+            .map_err(|e| borsh::io::Error::new(borsh::io::ErrorKind::InvalidData, e))
+    }
+}
 
 impl Mul<Gt> for Gt {
     type Output = Gt;
@@ -436,9 +463,7 @@ impl fmt::Display for Gt {
 
 impl Debug for Gt {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Gt")
-            .field("::Fq12", &self.0)
-            .finish()
+        f.debug_struct("Gt").field("::Fq12", &self.0).finish()
     }
 }
 
